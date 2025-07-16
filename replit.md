@@ -1,8 +1,8 @@
-# Server Host Manager
+# Infrastructure Management System
 
 ## Overview
 
-This is a full-stack web application for managing server hosts. The application allows users to create, read, update, and delete server records with details like hostname, IP address, location, and status monitoring. It's built with a React frontend and Express backend, featuring a modern UI with shadcn/ui components and real-time server monitoring capabilities.
+This is a full-stack web application for managing infrastructure in a hierarchical structure: Websites → Servers → Hosts. The application provides comprehensive tracking and monitoring of web applications, the servers they run on, and the physical hosts that power them. Built with a React frontend and Express backend, featuring a modern UI with shadcn/ui components and real-time monitoring capabilities.
 
 ## User Preferences
 
@@ -21,47 +21,76 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Database Provider**: Neon Database (serverless PostgreSQL)
+- **Storage**: In-memory storage with normalized data structure
 - **Validation**: Zod schemas for request/response validation
-- **Session Management**: PostgreSQL sessions with connect-pg-simple
 - **Development**: Hot module replacement with Vite integration
 
 ## Key Components
 
-### Database Schema
+### Normalized Database Schema
+- **Hosts Table**: Physical machines/infrastructure (id, hostname, ipAddress, location, description, status, uptime, responseTime, lastCheck)
+- **Servers Table**: Services running on hosts (id, name, hostId, port, protocol, description, status, uptime, responseTime, lastCheck)
+- **Websites Table**: Frontend applications served by servers (id, name, url, serverId, description, status, uptime, responseTime, lastCheck)
 - **Users Table**: Basic user authentication (id, username, password)
-- **Servers Table**: Server management with fields for hostname, IP address, location, description, status, uptime, response time, and last check timestamp
 
 ### API Endpoints
+**Host Management:**
+- `GET /api/hosts` - Retrieve all hosts
+- `GET /api/hosts/:id` - Retrieve specific host
+- `POST /api/hosts` - Create new host
+- `PUT /api/hosts/:id` - Update existing host
+- `DELETE /api/hosts/:id` - Delete host (if no dependent servers)
+- `POST /api/hosts/:id/status` - Update host status
+
+**Server Management:**
 - `GET /api/servers` - Retrieve all servers
 - `GET /api/servers/:id` - Retrieve specific server
+- `GET /api/hosts/:hostId/servers` - Get servers for specific host
 - `POST /api/servers` - Create new server
 - `PUT /api/servers/:id` - Update existing server
-- `DELETE /api/servers/:id` - Delete server
-- Server status monitoring endpoints (implied by schema)
+- `DELETE /api/servers/:id` - Delete server (if no dependent websites)
+- `POST /api/servers/:id/status` - Update server status
+
+**Website Management:**
+- `GET /api/websites` - Retrieve all websites
+- `GET /api/websites/:id` - Retrieve specific website
+- `GET /api/servers/:serverId/websites` - Get websites for specific server
+- `POST /api/websites` - Create new website
+- `PUT /api/websites/:id` - Update existing website
+- `DELETE /api/websites/:id` - Delete website
+- `POST /api/websites/:id/status` - Update website status
+
+**Statistics:**
+- `GET /api/stats` - Get comprehensive statistics for all entity types
 
 ### Frontend Features
-- Dashboard with server overview and statistics
-- Server cards with status indicators (online/offline/warning)
-- Modal forms for creating and editing servers
+- Tabbed dashboard with separate views for Websites, Servers, and Hosts
+- Hierarchical relationship display showing Website → Server → Host connections
+- Entity cards with status indicators (online/offline/warning)
+- Modal forms for creating and editing entities
 - Search and filtering capabilities
-- Real-time status updates
+- Real-time status updates with simulated monitoring
 - Responsive design with mobile support
 
 ## Data Flow
 
 1. **Client Requests**: React components use TanStack Query to fetch data
 2. **API Layer**: Express routes handle CRUD operations with Zod validation
-3. **Database Layer**: Drizzle ORM manages PostgreSQL interactions
+3. **Storage Layer**: In-memory storage with referential integrity checks
 4. **Response**: JSON responses sent back to client
 5. **UI Updates**: TanStack Query handles caching and re-rendering
+
+## Referential Integrity
+
+The system enforces referential integrity through:
+- **Cascade Prevention**: Cannot delete hosts with dependent servers
+- **Cascade Prevention**: Cannot delete servers with dependent websites
+- **Foreign Key Relationships**: Servers reference hostId, Websites reference serverId
+- **Relationship Queries**: Specialized endpoints for fetching related entities
 
 ## External Dependencies
 
 ### Core Dependencies
-- **@neondatabase/serverless**: Serverless PostgreSQL connection
-- **drizzle-orm**: Type-safe database ORM
 - **@tanstack/react-query**: Server state management
 - **@hookform/resolvers**: Form validation integration
 - **zod**: Runtime type validation
@@ -77,23 +106,26 @@ Preferred communication style: Simple, everyday language.
 
 ### Development
 - **Frontend**: Vite dev server with HMR
-- **Backend**: tsx for TypeScript execution with nodemon-like behavior
-- **Database**: Connection to Neon Database via DATABASE_URL environment variable
+- **Backend**: tsx for TypeScript execution
+- **Storage**: In-memory storage with sample data initialization
 
 ### Production Build
 - **Frontend**: Vite builds static assets to `dist/public`
 - **Backend**: esbuild bundles server code to `dist/index.js`
-- **Database**: Drizzle migrations applied via `db:push` script
 - **Deployment**: Single Node.js process serving both API and static files
 
 ### Environment Configuration
-- Uses environment variables for database connection
+- Uses environment variables for configuration
 - Supports both development and production environments
 - Replit-specific configurations for development banner and cartographer
 
-### Session Management
-- PostgreSQL-based session storage
-- Session configuration handled by connect-pg-simple
-- Secure session handling for user authentication
+## Recent Changes (January 2025)
 
-The application follows a modern full-stack architecture with TypeScript throughout, ensuring type safety from database to UI. The use of Drizzle ORM provides excellent developer experience with type-safe database operations, while TanStack Query manages client-side caching and synchronization effectively.
+- **Architecture Restructure**: Moved from flat server management to hierarchical Website → Server → Host structure
+- **Normalized Schema**: Implemented proper database normalization with foreign key relationships
+- **Enhanced API**: Added comprehensive CRUD endpoints for all entity types
+- **Improved UI**: Created tabbed interface with dedicated views for each entity type
+- **Referential Integrity**: Added cascade prevention and relationship validation
+- **Status Monitoring**: Implemented unified status tracking across all entity types
+
+The application now follows a properly normalized architecture with clear separation of concerns and referential integrity, providing a comprehensive infrastructure management solution.

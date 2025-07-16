@@ -10,108 +10,112 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { insertServerSchema, type Server, type InsertServer } from "@shared/schema";
+import { insertWebsiteSchema, type Website, type InsertWebsite, type Server, type Host } from "@shared/schema";
 import { z } from "zod";
 
-interface ServerModalProps {
+interface WebsiteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  server?: Server | null;
+  website?: Website | null;
+  servers: Server[];
+  hosts: Host[];
 }
 
-const formSchema = insertServerSchema.extend({
-  hostname: z.string().min(1, "Hostname is required"),
-  ipAddress: z.string().min(1, "IP Address is required").regex(
-    /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
-    "Invalid IP address format"
-  ),
-  location: z.string().min(1, "Location is required"),
+const formSchema = insertWebsiteSchema.extend({
+  name: z.string().min(1, "Name is required"),
+  url: z.string().min(1, "URL is required").url("Invalid URL format"),
+  serverId: z.number().min(1, "Server is required"),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
-export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
+export function WebsiteModal({ isOpen, onClose, website, servers, hosts }: WebsiteModalProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      hostname: "",
-      ipAddress: "",
-      location: "",
+      name: "",
+      url: "",
+      serverId: 0,
       description: "",
     },
   });
 
   useEffect(() => {
-    if (server) {
+    if (website) {
       form.reset({
-        hostname: server.hostname,
-        ipAddress: server.ipAddress,
-        location: server.location,
-        description: server.description || "",
+        name: website.name,
+        url: website.url,
+        serverId: website.serverId,
+        description: website.description || "",
       });
     } else {
       form.reset({
-        hostname: "",
-        ipAddress: "",
-        location: "",
+        name: "",
+        url: "",
+        serverId: 0,
         description: "",
       });
     }
-  }, [server, form]);
+  }, [website, form]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertServer) => {
-      await apiRequest("POST", "/api/servers", data);
+    mutationFn: async (data: InsertWebsite) => {
+      await apiRequest("POST", "/api/websites", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/servers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/websites"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Server added",
-        description: "Server has been successfully added.",
+        title: "Website added",
+        description: "Website has been successfully added.",
       });
       onClose();
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to add server. Please try again.",
+        description: "Failed to add website. Please try again.",
         variant: "destructive",
       });
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: InsertServer) => {
-      await apiRequest("PUT", `/api/servers/${server!.id}`, data);
+    mutationFn: async (data: InsertWebsite) => {
+      await apiRequest("PUT", `/api/websites/${website!.id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/servers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/websites"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
-        title: "Server updated",
-        description: "Server has been successfully updated.",
+        title: "Website updated",
+        description: "Website has been successfully updated.",
       });
       onClose();
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to update server. Please try again.",
+        description: "Failed to update website. Please try again.",
         variant: "destructive",
       });
     }
   });
 
   const onSubmit = (data: FormData) => {
-    if (server) {
+    if (website) {
       updateMutation.mutate(data);
     } else {
       createMutation.mutate(data);
     }
+  };
+
+  const getHostForServer = (serverId: number) => {
+    const server = servers.find(s => s.id === serverId);
+    return server ? hosts.find(h => h.id === server.hostId) : undefined;
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
@@ -121,7 +125,7 @@ export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {server ? "Edit Server" : "Add New Server"}
+            {website ? "Edit Website" : "Add New Website"}
           </DialogTitle>
         </DialogHeader>
         
@@ -129,12 +133,12 @@ export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="hostname"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hostname</FormLabel>
+                  <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="web-server-01" {...field} />
+                    <Input placeholder="Company Website" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -143,12 +147,12 @@ export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
             
             <FormField
               control={form.control}
-              name="ipAddress"
+              name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>IP Address</FormLabel>
+                  <FormLabel>URL</FormLabel>
                   <FormControl>
-                    <Input placeholder="192.168.1.10" {...field} />
+                    <Input placeholder="https://example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -157,21 +161,25 @@ export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
             
             <FormField
               control={form.control}
-              name="location"
+              name="serverId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>Server</FormLabel>
+                  <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select Location" />
+                        <SelectValue placeholder="Select Server" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="us-east">US East</SelectItem>
-                      <SelectItem value="us-west">US West</SelectItem>
-                      <SelectItem value="eu-west">EU West</SelectItem>
-                      <SelectItem value="asia-pacific">Asia Pacific</SelectItem>
+                      {servers.map((server) => {
+                        const host = getHostForServer(server.id);
+                        return (
+                          <SelectItem key={server.id} value={server.id.toString()}>
+                            {server.name} ({host?.hostname || "Unknown Host"})
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -210,7 +218,7 @@ export function ServerModal({ isOpen, onClose, server }: ServerModalProps) {
                 type="submit"
                 disabled={isLoading}
               >
-                {isLoading ? "Saving..." : server ? "Update Server" : "Add Server"}
+                {isLoading ? "Saving..." : website ? "Update Website" : "Add Website"}
               </Button>
             </div>
           </form>
