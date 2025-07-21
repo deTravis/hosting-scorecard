@@ -21,7 +21,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
-- **Storage**: In-memory storage with normalized data structure
+- **Database**: PostgreSQL with Drizzle ORM
+- **Storage**: DatabaseStorage class implementing full CRUD operations
 - **Validation**: Zod schemas for request/response validation
 - **Development**: Hot module replacement with Vite integration
 
@@ -76,7 +77,7 @@ Preferred communication style: Simple, everyday language.
 
 1. **Client Requests**: React components use TanStack Query to fetch data
 2. **API Layer**: Express routes handle CRUD operations with Zod validation
-3. **Storage Layer**: In-memory storage with referential integrity checks
+3. **Database Layer**: PostgreSQL database with Drizzle ORM and referential integrity
 4. **Response**: JSON responses sent back to client
 5. **UI Updates**: TanStack Query handles caching and re-rendering
 
@@ -107,7 +108,7 @@ The system enforces referential integrity through:
 ### Development
 - **Frontend**: Vite dev server with HMR
 - **Backend**: tsx for TypeScript execution
-- **Storage**: In-memory storage with sample data initialization
+- **Database**: PostgreSQL with sample data initialization
 
 ### Production Build
 - **Frontend**: Vite builds static assets to `dist/public`
@@ -119,8 +120,16 @@ The system enforces referential integrity through:
 - Supports both development and production environments
 - Replit-specific configurations for development banner and cartographer
 
-## Recent Changes (January 2025)
+## Recent Changes
 
+**July 21, 2025 - Database Integration**
+- **Database Migration**: Successfully migrated from in-memory storage to PostgreSQL database
+- **Drizzle ORM**: Implemented DatabaseStorage class using Drizzle ORM for all CRUD operations
+- **Schema Push**: Deployed database schema to PostgreSQL using `npm run db:push`
+- **Sample Data**: Automatic initialization of sample data on first startup
+- **Referential Integrity**: Database-level foreign key constraints between hosts, servers, and websites
+
+**Previous Changes (January 2025)**
 - **Architecture Restructure**: Moved from flat server management to hierarchical Website → Server → Host structure
 - **Normalized Schema**: Implemented proper database normalization with foreign key relationships
 - **Enhanced API**: Added comprehensive CRUD endpoints for all entity types
@@ -128,4 +137,4 @@ The system enforces referential integrity through:
 - **Referential Integrity**: Added cascade prevention and relationship validation
 - **Status Monitoring**: Implemented unified status tracking across all entity types
 
-The application now follows a properly normalized architecture with clear separation of concerns and referential integrity, providing a comprehensive infrastructure management solution.
+The application now uses a robust PostgreSQL database with Drizzle ORM, providing persistent data storage and proper relational integrity for the comprehensive infrastructure management solution.

@@ -5,6 +5,8 @@ import {
   type Server, type InsertServer, type UpdateServer,
   type Website, type InsertWebsite, type UpdateWebsite
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -38,31 +40,14 @@ export interface IStorage {
   updateWebsiteStatus(id: number, status: string, uptime?: string, responseTime?: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private hosts: Map<number, Host>;
-  private servers: Map<number, Server>;
-  private websites: Map<number, Website>;
-  private currentUserId: number;
-  private currentHostId: number;
-  private currentServerId: number;
-  private currentWebsiteId: number;
+export class DatabaseStorage implements IStorage {
+  async initializeSampleData() {
+    // Check if data already exists
+    const existingHosts = await db.select().from(hosts);
+    if (existingHosts.length > 0) {
+      return; // Data already exists, don't re-initialize
+    }
 
-  constructor() {
-    this.users = new Map();
-    this.hosts = new Map();
-    this.servers = new Map();
-    this.websites = new Map();
-    this.currentUserId = 1;
-    this.currentHostId = 1;
-    this.currentServerId = 1;
-    this.currentWebsiteId = 1;
-    
-    // Initialize with some sample data
-    this.initializeSampleData();
-  }
-
-  private initializeSampleData() {
     // Add sample hosts
     const sampleHosts: InsertHost[] = [
       {
@@ -85,288 +70,275 @@ export class MemStorage implements IStorage {
       }
     ];
 
-    sampleHosts.forEach(host => {
-      const hostId = this.currentHostId++;
-      const newHost: Host = {
-        ...host,
-        id: hostId,
-        status: hostId === 1 ? "online" : hostId === 2 ? "offline" : "warning",
-        uptime: hostId === 1 ? "99.9%" : hostId === 2 ? "95.2%" : "98.7%",
-        responseTime: hostId === 1 ? "45ms" : hostId === 2 ? null : "120ms",
-        lastCheck: new Date(),
-        description: host.description || null
-      };
-      this.hosts.set(hostId, newHost);
-    });
+    const createdHosts = await db.insert(hosts).values(sampleHosts).returning();
 
     // Add sample servers
     const sampleServers: InsertServer[] = [
       {
         name: "Nginx Web Server",
-        hostId: 1,
+        hostId: createdHosts[0].id,
         port: 80,
         protocol: "http",
         description: "Main web server"
       },
       {
         name: "Node.js API Server",
-        hostId: 2,
+        hostId: createdHosts[1].id,
         port: 3000,
         protocol: "http",
         description: "API backend server"
       },
       {
         name: "PostgreSQL Database",
-        hostId: 3,
+        hostId: createdHosts[2].id,
         port: 5432,
         protocol: "tcp",
         description: "Primary database"
       }
     ];
 
-    sampleServers.forEach(server => {
-      const serverId = this.currentServerId++;
-      const newServer: Server = {
-        ...server,
-        id: serverId,
-        status: serverId === 1 ? "online" : serverId === 2 ? "offline" : "warning",
-        uptime: serverId === 1 ? "99.8%" : serverId === 2 ? "94.5%" : "97.2%",
-        responseTime: serverId === 1 ? "25ms" : serverId === 2 ? null : "150ms",
-        lastCheck: new Date(),
-        description: server.description || null,
-        protocol: server.protocol || "http"
-      };
-      this.servers.set(serverId, newServer);
-    });
+    const createdServers = await db.insert(servers).values(sampleServers).returning();
 
     // Add sample websites
     const sampleWebsites: InsertWebsite[] = [
       {
         name: "Company Website",
         url: "https://company.com",
-        serverId: 1,
+        serverId: createdServers[0].id,
         description: "Main company website"
       },
       {
         name: "Admin Dashboard",
         url: "https://admin.company.com",
-        serverId: 1,
+        serverId: createdServers[0].id,
         description: "Admin control panel"
       },
       {
         name: "API Documentation",
         url: "https://api.company.com/docs",
-        serverId: 2,
+        serverId: createdServers[1].id,
         description: "API documentation site"
       }
     ];
 
-    sampleWebsites.forEach(website => {
-      const websiteId = this.currentWebsiteId++;
-      const newWebsite: Website = {
-        ...website,
-        id: websiteId,
-        status: websiteId === 1 ? "online" : websiteId === 2 ? "offline" : "warning",
-        uptime: websiteId === 1 ? "99.7%" : websiteId === 2 ? "92.1%" : "96.8%",
-        responseTime: websiteId === 1 ? "180ms" : websiteId === 2 ? null : "320ms",
-        lastCheck: new Date(),
-        description: website.description || null
-      };
-      this.websites.set(websiteId, newWebsite);
-    });
+    await db.insert(websites).values(sampleWebsites);
+
+    // Update statuses for sample data
+    await db.update(hosts).set({ status: "online", uptime: "99.9%", responseTime: "45ms" }).where(eq(hosts.id, createdHosts[0].id));
+    await db.update(hosts).set({ status: "offline", uptime: "95.2%", responseTime: null }).where(eq(hosts.id, createdHosts[1].id));
+    await db.update(hosts).set({ status: "warning", uptime: "98.7%", responseTime: "120ms" }).where(eq(hosts.id, createdHosts[2].id));
+
+    await db.update(servers).set({ status: "online", uptime: "99.8%", responseTime: "25ms" }).where(eq(servers.id, createdServers[0].id));
+    await db.update(servers).set({ status: "offline", uptime: "94.5%", responseTime: null }).where(eq(servers.id, createdServers[1].id));
+    await db.update(servers).set({ status: "warning", uptime: "97.2%", responseTime: "150ms" }).where(eq(servers.id, createdServers[2].id));
+
+    const createdWebsites = await db.select().from(websites);
+    if (createdWebsites.length > 0) {
+      await db.update(websites).set({ status: "online", uptime: "99.7%", responseTime: "180ms" }).where(eq(websites.id, createdWebsites[0].id));
+      if (createdWebsites[1]) {
+        await db.update(websites).set({ status: "offline", uptime: "92.1%", responseTime: null }).where(eq(websites.id, createdWebsites[1].id));
+      }
+      if (createdWebsites[2]) {
+        await db.update(websites).set({ status: "warning", uptime: "96.8%", responseTime: "320ms" }).where(eq(websites.id, createdWebsites[2].id));
+      }
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
 
   // Host operations
   async getHosts(): Promise<Host[]> {
-    return Array.from(this.hosts.values());
+    return await db.select().from(hosts);
   }
 
   async getHost(id: number): Promise<Host | undefined> {
-    return this.hosts.get(id);
+    const [host] = await db.select().from(hosts).where(eq(hosts.id, id));
+    return host || undefined;
   }
 
   async createHost(insertHost: InsertHost): Promise<Host> {
-    const id = this.currentHostId++;
-    const host: Host = {
-      ...insertHost,
-      id,
-      status: "offline",
-      uptime: "0%",
-      responseTime: null,
-      lastCheck: new Date(),
-      description: insertHost.description || null
-    };
-    this.hosts.set(id, host);
+    const [host] = await db
+      .insert(hosts)
+      .values({
+        ...insertHost,
+        status: "offline",
+        uptime: "0%",
+        responseTime: null
+      })
+      .returning();
     return host;
   }
 
   async updateHost(id: number, updateHost: UpdateHost): Promise<Host | undefined> {
-    const existing = this.hosts.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Host = {
-      ...existing,
-      ...updateHost,
-      lastCheck: new Date()
-    };
-    this.hosts.set(id, updated);
-    return updated;
+    const [host] = await db
+      .update(hosts)
+      .set({
+        ...updateHost,
+        lastCheck: new Date()
+      })
+      .where(eq(hosts.id, id))
+      .returning();
+    return host || undefined;
   }
 
   async deleteHost(id: number): Promise<boolean> {
     // Check if any servers depend on this host
-    const dependentServers = Array.from(this.servers.values()).filter(s => s.hostId === id);
+    const dependentServers = await db.select().from(servers).where(eq(servers.hostId, id));
     if (dependentServers.length > 0) {
       return false; // Cannot delete host with dependent servers
     }
-    return this.hosts.delete(id);
+    
+    const result = await db.delete(hosts).where(eq(hosts.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   async updateHostStatus(id: number, status: string, uptime?: string, responseTime?: string): Promise<void> {
-    const host = this.hosts.get(id);
-    if (host) {
-      host.status = status;
-      host.lastCheck = new Date();
-      if (uptime) host.uptime = uptime;
-      if (responseTime) host.responseTime = responseTime;
-      this.hosts.set(id, host);
-    }
+    const updateData: any = {
+      status,
+      lastCheck: new Date()
+    };
+    if (uptime) updateData.uptime = uptime;
+    if (responseTime !== undefined) updateData.responseTime = responseTime;
+
+    await db.update(hosts).set(updateData).where(eq(hosts.id, id));
   }
 
   // Server operations
   async getServers(): Promise<Server[]> {
-    return Array.from(this.servers.values());
+    return await db.select().from(servers);
   }
 
   async getServersByHost(hostId: number): Promise<Server[]> {
-    return Array.from(this.servers.values()).filter(s => s.hostId === hostId);
+    return await db.select().from(servers).where(eq(servers.hostId, hostId));
   }
 
   async getServer(id: number): Promise<Server | undefined> {
-    return this.servers.get(id);
+    const [server] = await db.select().from(servers).where(eq(servers.id, id));
+    return server || undefined;
   }
 
   async createServer(insertServer: InsertServer): Promise<Server> {
-    const id = this.currentServerId++;
-    const server: Server = {
-      ...insertServer,
-      id,
-      status: "offline",
-      uptime: "0%",
-      responseTime: null,
-      lastCheck: new Date(),
-      description: insertServer.description || null,
-      protocol: insertServer.protocol || "http"
-    };
-    this.servers.set(id, server);
+    const [server] = await db
+      .insert(servers)
+      .values({
+        ...insertServer,
+        status: "offline",
+        uptime: "0%",
+        responseTime: null,
+        protocol: insertServer.protocol || "http"
+      })
+      .returning();
     return server;
   }
 
   async updateServer(id: number, updateServer: UpdateServer): Promise<Server | undefined> {
-    const existing = this.servers.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Server = {
-      ...existing,
-      ...updateServer,
-      lastCheck: new Date()
-    };
-    this.servers.set(id, updated);
-    return updated;
+    const [server] = await db
+      .update(servers)
+      .set({
+        ...updateServer,
+        lastCheck: new Date()
+      })
+      .where(eq(servers.id, id))
+      .returning();
+    return server || undefined;
   }
 
   async deleteServer(id: number): Promise<boolean> {
     // Check if any websites depend on this server
-    const dependentWebsites = Array.from(this.websites.values()).filter(w => w.serverId === id);
+    const dependentWebsites = await db.select().from(websites).where(eq(websites.serverId, id));
     if (dependentWebsites.length > 0) {
       return false; // Cannot delete server with dependent websites
     }
-    return this.servers.delete(id);
+    
+    const result = await db.delete(servers).where(eq(servers.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   async updateServerStatus(id: number, status: string, uptime?: string, responseTime?: string): Promise<void> {
-    const server = this.servers.get(id);
-    if (server) {
-      server.status = status;
-      server.lastCheck = new Date();
-      if (uptime) server.uptime = uptime;
-      if (responseTime) server.responseTime = responseTime;
-      this.servers.set(id, server);
-    }
+    const updateData: any = {
+      status,
+      lastCheck: new Date()
+    };
+    if (uptime) updateData.uptime = uptime;
+    if (responseTime !== undefined) updateData.responseTime = responseTime;
+
+    await db.update(servers).set(updateData).where(eq(servers.id, id));
   }
 
   // Website operations
   async getWebsites(): Promise<Website[]> {
-    return Array.from(this.websites.values());
+    return await db.select().from(websites);
   }
 
   async getWebsitesByServer(serverId: number): Promise<Website[]> {
-    return Array.from(this.websites.values()).filter(w => w.serverId === serverId);
+    return await db.select().from(websites).where(eq(websites.serverId, serverId));
   }
 
   async getWebsite(id: number): Promise<Website | undefined> {
-    return this.websites.get(id);
+    const [website] = await db.select().from(websites).where(eq(websites.id, id));
+    return website || undefined;
   }
 
   async createWebsite(insertWebsite: InsertWebsite): Promise<Website> {
-    const id = this.currentWebsiteId++;
-    const website: Website = {
-      ...insertWebsite,
-      id,
-      status: "offline",
-      uptime: "0%",
-      responseTime: null,
-      lastCheck: new Date(),
-      description: insertWebsite.description || null
-    };
-    this.websites.set(id, website);
+    const [website] = await db
+      .insert(websites)
+      .values({
+        ...insertWebsite,
+        status: "offline",
+        uptime: "0%",
+        responseTime: null
+      })
+      .returning();
     return website;
   }
 
   async updateWebsite(id: number, updateWebsite: UpdateWebsite): Promise<Website | undefined> {
-    const existing = this.websites.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Website = {
-      ...existing,
-      ...updateWebsite,
-      lastCheck: new Date()
-    };
-    this.websites.set(id, updated);
-    return updated;
+    const [website] = await db
+      .update(websites)
+      .set({
+        ...updateWebsite,
+        lastCheck: new Date()
+      })
+      .where(eq(websites.id, id))
+      .returning();
+    return website || undefined;
   }
 
   async deleteWebsite(id: number): Promise<boolean> {
-    return this.websites.delete(id);
+    const result = await db.delete(websites).where(eq(websites.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   async updateWebsiteStatus(id: number, status: string, uptime?: string, responseTime?: string): Promise<void> {
-    const website = this.websites.get(id);
-    if (website) {
-      website.status = status;
-      website.lastCheck = new Date();
-      if (uptime) website.uptime = uptime;
-      if (responseTime) website.responseTime = responseTime;
-      this.websites.set(id, website);
-    }
+    const updateData: any = {
+      status,
+      lastCheck: new Date()
+    };
+    if (uptime) updateData.uptime = uptime;
+    if (responseTime !== undefined) updateData.responseTime = responseTime;
+
+    await db.update(websites).set(updateData).where(eq(websites.id, id));
   }
 }
 
-export const storage = new MemStorage();
+const databaseStorage = new DatabaseStorage();
+// Initialize sample data when the storage is first created
+databaseStorage.initializeSampleData().catch(console.error);
+
+export const storage = databaseStorage;
