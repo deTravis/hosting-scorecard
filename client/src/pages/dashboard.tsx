@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/header";
 import { StatsCard } from "@/components/stats-card";
 import { WebsiteCard } from "@/components/website-card";
+import { WebsiteList } from "@/components/website-list";
 import { WebsiteModal } from "@/components/website-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Grid, List } from "lucide-react";
 import type { Website, Server, Host } from "@shared/schema";
 
 export default function Dashboard() {
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("websites");
+  const [viewMode, setViewMode] = useState<"card" | "list">("card");
 
   const { data: websites = [], isLoading: websitesLoading } = useQuery<Website[]>({
     queryKey: ["/api/websites"],
@@ -30,7 +32,9 @@ export default function Dashboard() {
     queryKey: ["/api/hosts"],
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<{
+    websites: { onlineCount: number; offlineCount: number; warningCount: number; totalCount: number };
+  }>({
     queryKey: ["/api/stats"],
   });
 
@@ -119,10 +123,30 @@ export default function Dashboard() {
                       {filteredWebsites.length} websites
                     </span>
                   </div>
-                  <Button onClick={handleAddWebsite} className="flex items-center space-x-2 bg-black hover:bg-gray-800 text-white">
-                    <Plus className="w-4 h-4" />
-                    <span>Add Website</span>
-                  </Button>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center border border-gray-200 rounded-md">
+                      <Button
+                        variant={viewMode === "card" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setViewMode("card")}
+                        className="rounded-r-none"
+                      >
+                        <Grid className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant={viewMode === "list" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setViewMode("list")}
+                        className="rounded-l-none border-l"
+                      >
+                        <List className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Button onClick={handleAddWebsite} className="flex items-center space-x-2 bg-black hover:bg-gray-800 text-white">
+                      <Plus className="w-4 h-4" />
+                      <span>Add Website</span>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Search and Filters */}
@@ -153,7 +177,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Website Grid */}
+              {/* Website Display */}
               <div className="p-6">
                 {websitesLoading ? (
                   <div className="text-center py-8">Loading websites...</div>
@@ -163,7 +187,7 @@ export default function Dashboard() {
                       ? "No websites match your filters" 
                       : "No websites found. Add your first website to get started."}
                   </div>
-                ) : (
+                ) : viewMode === "card" ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredWebsites.map((website) => (
                       <WebsiteCard
@@ -175,6 +199,13 @@ export default function Dashboard() {
                       />
                     ))}
                   </div>
+                ) : (
+                  <WebsiteList
+                    websites={filteredWebsites}
+                    onEdit={handleEditWebsite}
+                    getServerById={getServerById}
+                    getHostById={getHostById}
+                  />
                 )}
               </div>
             </TabsContent>
