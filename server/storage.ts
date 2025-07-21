@@ -338,7 +338,11 @@ export class DatabaseStorage implements IStorage {
 }
 
 const databaseStorage = new DatabaseStorage();
-// Initialize sample data when the storage is first created
-databaseStorage.initializeSampleData().catch(console.error);
+
+// Initialize sample data when the storage is first created, but handle errors gracefully
+databaseStorage.initializeSampleData().catch((error) => {
+  console.error('Failed to initialize sample data:', error);
+  // Don't throw the error to prevent app startup failure
+});
 
 export const storage = databaseStorage;
