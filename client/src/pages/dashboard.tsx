@@ -119,7 +119,7 @@ export default function Dashboard() {
                       {filteredWebsites.length} websites
                     </span>
                   </div>
-                  <Button onClick={handleAddWebsite} className="flex items-center space-x-2">
+                  <Button onClick={handleAddWebsite} className="flex items-center space-x-2 bg-black hover:bg-gray-800 text-white">
                     <Plus className="w-4 h-4" />
                     <span>Add Website</span>
                   </Button>
